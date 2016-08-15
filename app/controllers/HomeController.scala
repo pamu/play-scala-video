@@ -5,14 +5,16 @@ import javax.inject._
 
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import play.api.Logger
 import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
-import play.api.libs.iteratee.{Enumeratee, Enumerator}
+import play.api.libs.iteratee.{Enumeratee, Enumerator, Iteratee}
 import play.api.libs.streams.Streams
 import play.api.mvc._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Try
 
 @Singleton
 class HomeController @Inject() extends Controller {
@@ -23,6 +25,9 @@ class HomeController @Inject() extends Controller {
   }
 
   def media = Action { req =>
+
+    Logger.info(req.headers.toMap.mkString("\n"))
+
     val file = new File("/Users/pnagarjuna/Downloads/passenger.mp4")
     val rangeHeaderOpt = req.headers.get(RANGE)
     rangeHeaderOpt.map { range =>
@@ -41,10 +46,14 @@ class HomeController @Inject() extends Controller {
     }
   }
 
+
   def partialContentHelper(file: File, start: Long, length: Long) = {
     val fis = new FileInputStream(file)
     fis.skip(start)
-    val byteStringEnumerator = Enumerator.fromStream(fis).&>(Enumeratee.map(ByteString.fromArray(_)))
+    val byteStringEnumerator = Enumerator.fromStream(fis).map(ByteString.fromArray).onDoneEnumerating(Try {
+      Logger.warn("file closed")
+      fis.close()
+    })
     val mediaSource = Source.fromPublisher(Streams.enumeratorToPublisher(byteStringEnumerator))
     PartialContent.sendEntity(HttpEntity.Streamed(mediaSource, None, None)).withHeaders(
       CONTENT_TYPE -> MimeTypes.forExtension("mp4").get,
