@@ -29,7 +29,9 @@ class HomeController @Inject() extends Controller {
     Logger.info(req.headers.toMap.mkString("\n"))
 
     val file = new File("/Users/pnagarjuna/Downloads/passenger.mp4")
+
     val rangeHeaderOpt = req.headers.get(RANGE)
+
     rangeHeaderOpt.map { range =>
       val strs = range.substring("bytes=".length).split("-")
       if (strs.length == 1) {
@@ -48,20 +50,36 @@ class HomeController @Inject() extends Controller {
 
 
   def partialContentHelper(file: File, start: Long, length: Long) = {
+
     val fis = new FileInputStream(file)
     fis.skip(start)
-    val byteStringEnumerator = Enumerator.fromStream(fis).map(ByteString.fromArray).onDoneEnumerating(Try {
+
+    var count = 0
+
+    val byteStringEnumerator = Enumerator.fromStream(fis).map { bytes =>
+      count += 1
+      Logger.warn(s"count: $count. chunk size: ${bytes.length}")
+      ByteString.fromArray(bytes)
+    }.onDoneEnumerating(Try {
       Logger.warn("file closed")
       fis.close()
     })
-    val mediaSource = Source.fromPublisher(Streams.enumeratorToPublisher(byteStringEnumerator))
-    PartialContent.sendEntity(HttpEntity.Streamed(mediaSource, None, None)).withHeaders(
+
+    val countingEnumerator = byteStringEnumerator
+
+    val mediaSource = Source.fromPublisher(Streams.enumeratorToPublisher(countingEnumerator))
+
+    val partialContent = PartialContent.sendEntity(HttpEntity.Streamed(mediaSource, None, None)).withHeaders(
       CONTENT_TYPE -> MimeTypes.forExtension("mp4").get,
       CONTENT_LENGTH -> ((length - start) + 1).toString,
       CONTENT_RANGE -> s"bytes $start-$length/${file.length()}",
       ACCEPT_RANGES -> "bytes",
       CONNECTION -> "keep-alive"
     )
+
+    Logger.warn(partialContent.header.headers.mkString("\n"))
+
+    partialContent
   }
 
   def fileUpload = Action.async(parse.multipartFormData) { req =>
