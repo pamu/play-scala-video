@@ -8,7 +8,7 @@ import akka.util.ByteString
 import play.api.Logger
 import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
-import play.api.libs.iteratee.{Enumeratee, Enumerator, Iteratee}
+import play.api.libs.iteratee.Enumerator
 import play.api.libs.streams.Streams
 import play.api.mvc._
 
