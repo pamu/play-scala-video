@@ -5,47 +5,53 @@ import javax.inject._
 
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import org.apache.commons.io.FilenameUtils
 import play.api.Logger
 import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.streams.Streams
 import play.api.mvc._
+import services.models.MediaId
+import services.service_modules.MediaLocatorService
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
 @Singleton
-class HomeController @Inject() extends Controller {
+class HomeController @Inject()(mediaLocationService: MediaLocatorService) extends Controller {
 
 
   def index = Action {
     Ok(views.html.index("Your new application is ready."))
   }
 
-  def media = Action { req =>
+  def media(id: String) = Action { req =>
 
     Logger.info(req.headers.toMap.mkString("\n"))
 
-    val file = new File("/Users/pnagarjuna/Downloads/passenger.mp4")
-
-    val rangeHeaderOpt = req.headers.get(RANGE)
-
-    rangeHeaderOpt.map { range =>
-      val strs = range.substring("bytes=".length).split("-")
-      if (strs.length == 1) {
-        val start = strs.head.toLong
-        val length = file.length() - 1L
-        partialContentHelper(file, start, length, Some(1024 * 16))
-      } else {
-        val start = strs.head.toLong
-        val length = strs.tail.head.toLong
-        partialContentHelper(file, start, length)
+    mediaLocationService.getPath(MediaId(id)).map { path =>
+      val file = path.toFile
+      val rangeHeaderOpt = req.headers.get(RANGE)
+      rangeHeaderOpt.map { range =>
+        val strs = range.substring("bytes=".length).split("-")
+        if (strs.length == 1) {
+          val start = strs.head.toLong
+          val length = file.length() - 1L
+          partialContentHelper(file, start, length, Some(1024 * 16))
+        } else {
+          val start = strs.head.toLong
+          val length = strs.tail.head.toLong
+          partialContentHelper(file, start, length)
+        }
+      }.getOrElse {
+        Ok.sendFile(file)
       }
     }.getOrElse {
-      Ok.sendFile(file)
+      InternalServerError
     }
+
   }
 
 
@@ -68,7 +74,7 @@ class HomeController @Inject() extends Controller {
     val mediaSource = Source.fromPublisher(Streams.enumeratorToPublisher(byteStringEnumerator))
 
     val partialContent = PartialContent.sendEntity(HttpEntity.Streamed(mediaSource, None, None)).withHeaders(
-      CONTENT_TYPE -> MimeTypes.forExtension("mp4").get,
+      CONTENT_TYPE -> MimeTypes.forExtension(FilenameUtils.getExtension(file.getName).trim).get,
       CONTENT_LENGTH -> ((length - start) + 1).toString,
       CONTENT_RANGE -> s"bytes $start-$length/${file.length()}",
       ACCEPT_RANGES -> "bytes",

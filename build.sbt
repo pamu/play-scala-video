@@ -10,6 +10,7 @@ libraryDependencies ++= Seq(
   jdbc,
   cache,
   ws,
+  "commons-io" % "commons-io" % "2.5",
   "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.1" % Test
 )
 
