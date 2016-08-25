@@ -87,8 +87,12 @@ class HomeController @Inject()(mediaLocationService: MediaLocatorService) extend
 
   def fileUpload = Action.async(parse.multipartFormData) { req =>
     Future {
-      scala.concurrent.blocking {
-        //TODO copy files to media folder
+      req.body.files.map { fileData =>
+        Future {
+          scala.concurrent.blocking {
+
+          }
+        }
       }
     }.map { result =>
       Ok("success")
