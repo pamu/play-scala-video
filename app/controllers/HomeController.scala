@@ -1,11 +1,12 @@
 package controllers
 
+import common._
 import java.io.{File, FileInputStream}
 import javax.inject._
 
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import org.apache.commons.io.FilenameUtils
+import org.apache.commons.io.{FileUtils, FilenameUtils}
 import play.api.Logger
 import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
@@ -15,16 +16,15 @@ import play.api.mvc._
 import services.models.MediaId
 import services.service_modules.MediaLocatorService
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 @Singleton
 class HomeController @Inject()(mediaLocationService: MediaLocatorService) extends Controller {
 
 
   def index = Action {
-    Ok(views.html.index("Your new application is ready."))
+    Ok(views.html.index("Media Service"))
   }
 
   def media(id: String) = Action { req =>
@@ -90,7 +90,12 @@ class HomeController @Inject()(mediaLocationService: MediaLocatorService) extend
       req.body.files.map { fileData =>
         Future {
           scala.concurrent.blocking {
-
+            Try {
+              FileUtils.moveFile(fileData.ref.file, new File(MediaFolder, fileData.filename))
+            } match {
+              case Failure(exception) => Logger.info(s"""exception ocurred ${exception.getStackTrace.mkString("\n")}""")
+              case Success(value) => Logger.info(s"""moving files successful.""")
+            }
           }
         }
       }
